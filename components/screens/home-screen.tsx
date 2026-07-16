@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Check, Leaf, Moon, Sun, Zap } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Leaf, Moon, Sun, Zap } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { completedMinutesToday, plannedMinutes, type LightTask } from '@/lib/lumi-data'
@@ -24,9 +23,31 @@ function brightnessHint(value: number) {
 
 function formatMinutes(value: number) { const hours = Math.floor(value / 60); const minutes = Math.floor(value % 60); return `${hours}h ${String(minutes).padStart(2, '0')}m` }
 
-export function HomeScreen({ name, tasks, brightness, onBrightnessChange, missionClaimedDate, onClaimMission }: { name: string; tasks: LightTask[]; brightness: number; onBrightnessChange: (brightness: number) => void; missionClaimedDate?: string; onClaimMission: () => void }) {
+const dailyMissions = [
+  ['Early Bird', 'Open the app within 15 minutes of your target wake time.'], ['Start Photosynthesis', 'Before 8 AM, keep screen brightness at 80% or higher for 10 minutes.'],
+  ['Morning Alertness', 'Use Focus mode for at least 30 minutes during the morning.'], ['Wake-up Challenge', 'Wake within 10 minutes of your target wake time.'], ['Morning Briefing', 'Open the Stats tab after waking and check yesterday’s sleep record.'],
+  ['Full Focus', 'Complete one High-focus schedule block.'], ['Deep Work', 'Keep Focus mode active for two consecutive hours.'], ['Afternoon Sunlight', 'Reach 15 minutes of maximum-brightness exposure between noon and 2 PM.'],
+  ['Cognitive Switch', 'Place and complete one Low-rest block immediately after a High block.'], ['Scheduler', 'Register at least three schedule blocks for today.'], ['50% Light Intake', 'Fill half of the daily light intake gauge before 3 PM.'],
+  ['Stay on Track', 'Keep light synchronization on throughout the daytime.'], ['Blue Light Defense', 'After 9 PM, lower screen brightness to 30% or below.'], ['Digital Sunset', 'Switch to Relax mode at 10 PM.'],
+  ['Rest Your Eyes', 'Complete a Low-rest block of 20 minutes or more during the evening.'], ['Night Guardian', 'Keep Focus mode use at zero minutes after 10 PM.'], ['Amber Light Warm-up', 'Set lighting to 3000K or lower from two hours before sleep.'],
+  ['Dark Mode Adaptation', 'Turn on your phone’s system dark mode after 8 PM.'], ['Perfect Lights Out', 'Turn on Sleep mode 10 minutes before your target sleep time.'], ['Sleep Ritual', 'Keep smartphone screen-on time below five minutes in the 30 minutes before bed.'],
+  ['No Phone in Bed', 'Keep brightness at 10% or lower for one hour after 11 PM.'], ['On-time Finish', 'Finish all app schedules at your target sleep time.'], ['Plan Ahead', 'Set at least three schedule blocks for tomorrow tonight.'],
+  ['Point Flex', 'Visit the Lumen Store and browse a theme or report.'], ['Break the Streak', 'Complete at least one daily mission for three consecutive days.'], ['Perfect Day', 'Reach 100% schedule adherence today.'],
+  ['Lumen Hunter', 'Earn at least 150 L from schedule completion rewards today.'], ['Circadian Rhythm Master', 'Balance blue-light daytime and red-light nighttime exposure in today’s stats.'], ['Theme Changer', 'Apply a different unlocked cosmic theme in the store.'], ['Self Feedback', 'Open Weekly stats and review your goal completion rate.'],
+] as const
+
+function missionsForDate(date: Date) {
+  const key = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`
+  let seed = [...key].reduce((value, char) => (value * 31 + char.charCodeAt(0)) >>> 0, 0)
+  const first = seed % dailyMissions.length
+  seed = (seed * 1664525 + 1013904223) >>> 0
+  let second = seed % dailyMissions.length
+  if (second === first) second = (second + 1) % dailyMissions.length
+  return [dailyMissions[first], dailyMissions[second]]
+}
+
+export function HomeScreen({ name, tasks, brightness, onBrightnessChange }: { name: string; tasks: LightTask[]; brightness: number; onBrightnessChange: (brightness: number) => void }) {
   const [mode, setMode] = useState<ModeId>('focus')
-  const [missionMessage, setMissionMessage] = useState('')
   const [now, setNow] = useState(() => new Date())
   useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 1000); return () => window.clearInterval(timer) }, [])
   const selectedMode = modes.find((item) => item.id === mode) ?? modes[0]
@@ -39,16 +60,7 @@ export function HomeScreen({ name, tasks, brightness, onBrightnessChange, missio
   const hour = now.getHours()
   const greeting = hour < 5 ? 'Good night' : hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : hour < 22 ? 'Good evening' : 'Good night'
   const dateLabel = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(now)
-  const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-  const claimed = missionClaimedDate === todayKey
-  const missionReady = brightness <= 20
-
-  function claimMission() {
-    if (claimed) { setMissionMessage('Today’s reward has already been claimed.'); return }
-    if (!missionReady) { setMissionMessage('Set brightness to 20% or lower to complete this mission.'); return }
-    onClaimMission()
-    setMissionMessage('Mission complete! +10 Lumens added.')
-  }
+  const todayMissions = missionsForDate(now)
 
   return (
     <section className="flex flex-col gap-6" aria-labelledby="home-title">
@@ -83,10 +95,7 @@ export function HomeScreen({ name, tasks, brightness, onBrightnessChange, missio
         <CardContent className="flex flex-col gap-3 px-5"><input id="smart-light-brightness" aria-label="Smart light brightness" type="range" value={brightness} onChange={(event) => onBrightnessChange(Number(event.target.value))} min="0" max="100" step="1" className="native-lumi-slider" /><p className="text-xs leading-relaxed text-muted-foreground">{brightnessHint(brightness)}</p></CardContent>
       </Card>
 
-      <Card className="border-0 bg-card py-5 ring-1 ring-border">
-        <CardHeader className="px-5"><CardDescription className="text-xs uppercase tracking-[0.14em] text-accent">Live mission</CardDescription><CardTitle className="max-w-xs text-pretty text-base">Dim screen below 20% for SCN protection</CardTitle></CardHeader>
-        <CardContent className="flex items-center justify-between gap-4 px-5"><div><p className="text-xs leading-relaxed text-muted-foreground">Reduce brightness to 20% or below before claiming today&apos;s reward.</p>{missionMessage && <p className="mt-1 text-[11px] text-primary" aria-live="polite">{missionMessage}</p>}</div><Button size="sm" variant="outline" onClick={claimMission} disabled={claimed} className="shrink-0 font-mono">{claimed ? <><Check data-icon="inline-start" /> Claimed</> : '+10 Lumens'}</Button></CardContent>
-      </Card>
+      <div className="flex flex-col gap-3"><div><p className="text-xs font-medium uppercase tracking-[0.14em] text-accent">Daily missions</p><p className="mt-1 text-xs text-muted-foreground">Two fresh missions are selected each day.</p></div>{todayMissions.map(([title, description]) => <Card key={title} className="border-0 bg-card py-4 ring-1 ring-border"><CardHeader className="px-5"><CardTitle className="text-base">{title}</CardTitle></CardHeader><CardContent className="px-5"><p className="text-xs leading-relaxed text-muted-foreground">{description}</p></CardContent></Card>)}</div>
     </section>
   )
 }
