@@ -26,16 +26,41 @@ const tabs = [
 ]
 
 function readCookie(): UserData | null {
-  const value = document.cookie.split('; ').find((item) => item.startsWith(`${COOKIE_KEY}=`))?.split('=').slice(1).join('=')
-  if (!value) return null
-  try {
-    const saved = JSON.parse(decodeURIComponent(value)) as Partial<UserData>
+  const hydrate = (raw: string) => {
+    const saved = JSON.parse(raw) as Partial<UserData>
     const validThemes: AppTheme[] = ['lunar', 'starlight', 'saturn', 'jupiter', 'nebula', 'solar', 'horizon']
     const appTheme = validThemes.includes(saved.appTheme as AppTheme) ? saved.appTheme as AppTheme : 'lunar'
     const ownedThemes = Array.isArray(saved.ownedThemes) ? saved.ownedThemes.filter((theme): theme is AppTheme => validThemes.includes(theme as AppTheme)) : []
     const legacyTasks = Array.isArray(saved.tasks) ? saved.tasks : initialTasks
     return { ...defaultData, ...saved, tasks: legacyTasks, weeklyTasks: saved.weeklyTasks ?? createWeeklySchedule(legacyTasks), settings: { ...defaultSettings, ...saved.settings }, rewardClaims: saved.rewardClaims ?? {}, appTheme, ownedThemes: Array.from(new Set(['lunar', ...ownedThemes])) }
+  }
+  try {
+    const localValue = window.localStorage.getItem(COOKIE_KEY)
+    if (localValue) return hydrate(localValue)
+  } catch { /* Cookie storage remains available when local storage is blocked. */ }
+  const cookies = document.cookie.split('; ').reduce<Record<string, string>>((all, item) => {
+    const index = item.indexOf('=')
+    if (index > -1) all[item.slice(0, index)] = item.slice(index + 1)
+    return all
+  }, {})
+  const chunkCount = Number(cookies[`${COOKIE_KEY}-chunks`])
+  const value = Number.isInteger(chunkCount) && chunkCount > 0
+    ? Array.from({ length: chunkCount }, (_, index) => cookies[`${COOKIE_KEY}-${index}`] ?? '').join('')
+    : cookies[COOKIE_KEY]
+  if (!value) return null
+  try {
+    return hydrate(decodeURIComponent(value))
   } catch { return null }
+}
+
+function saveCookie(data: UserData) {
+  try { window.localStorage.setItem(COOKIE_KEY, JSON.stringify(data)) } catch { /* Cookie backup is used when local storage is unavailable. */ }
+  const encoded = encodeURIComponent(JSON.stringify(data))
+  const chunks = encoded.match(/.{1,3500}/g) ?? []
+  const attributes = 'max-age=31536000; path=/; samesite=lax'
+  document.cookie = `${COOKIE_KEY}-chunks=${chunks.length}; ${attributes}`
+  chunks.forEach((chunk, index) => { document.cookie = `${COOKIE_KEY}-${index}=${chunk}; ${attributes}` })
+  document.cookie = `${COOKIE_KEY}=; max-age=0; path=/; samesite=lax`
 }
 
 function localDateKey(date = new Date()) {
@@ -48,7 +73,7 @@ export function LumiSyncApp() {
   const [ready, setReady] = useState(false)
   const [nameInput, setNameInput] = useState('')
   useEffect(() => { const saved = readCookie(); if (saved) setData(saved); setReady(true) }, [])
-  useEffect(() => { if (ready && data.name) document.cookie = `${COOKIE_KEY}=${encodeURIComponent(JSON.stringify(data))}; max-age=${60 * 60 * 24 * 365}; path=/; samesite=lax` }, [data, ready])
+  useEffect(() => { if (ready && data.name) saveCookie(data) }, [data, ready])
   const update = (patch: Partial<UserData>) => setData((current) => ({ ...current, ...patch }))
   const spendLumens = (cost: number) => { if (data.lumens < cost) return false; update({ lumens: data.lumens - cost }); return true }
   const completeOnboarding = () => update({ name: nameInput.trim() || 'Lumi explorer', firstSeen: new Date().toISOString() })
