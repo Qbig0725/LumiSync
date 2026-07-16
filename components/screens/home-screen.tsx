@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Leaf, Moon, Sun, Zap } from 'lucide-react'
+import { Check, Leaf, Moon, Sun, Zap } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { completedMinutesToday, plannedMinutes, type LightTask } from '@/lib/lumi-data'
 
@@ -46,7 +47,7 @@ function missionsForDate(date: Date) {
   return [dailyMissions[first], dailyMissions[second]]
 }
 
-export function HomeScreen({ name, tasks, brightness, onBrightnessChange }: { name: string; tasks: LightTask[]; brightness: number; onBrightnessChange: (brightness: number) => void }) {
+export function HomeScreen({ name, tasks, brightness, onBrightnessChange, claimedMissionTitles, onClaimMission }: { name: string; tasks: LightTask[]; brightness: number; onBrightnessChange: (brightness: number) => void; claimedMissionTitles: string[]; onClaimMission: (title: string) => void }) {
   const [mode, setMode] = useState<ModeId>('focus')
   const [now, setNow] = useState(() => new Date())
   useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 1000); return () => window.clearInterval(timer) }, [])
@@ -95,7 +96,7 @@ export function HomeScreen({ name, tasks, brightness, onBrightnessChange }: { na
         <CardContent className="flex flex-col gap-3 px-5"><input id="smart-light-brightness" aria-label="Smart light brightness" type="range" value={brightness} onChange={(event) => onBrightnessChange(Number(event.target.value))} min="0" max="100" step="1" className="native-lumi-slider" /><p className="text-xs leading-relaxed text-muted-foreground">{brightnessHint(brightness)}</p></CardContent>
       </Card>
 
-      <div className="flex flex-col gap-3"><div><p className="text-xs font-medium uppercase tracking-[0.14em] text-accent">Daily missions</p><p className="mt-1 text-xs text-muted-foreground">Two fresh missions are selected each day.</p></div>{todayMissions.map(([title, description]) => <Card key={title} className="border-0 bg-card py-4 ring-1 ring-border"><CardHeader className="px-5"><CardTitle className="text-base">{title}</CardTitle></CardHeader><CardContent className="px-5"><p className="text-xs leading-relaxed text-muted-foreground">{description}</p></CardContent></Card>)}</div>
+      <div className="flex flex-col gap-3"><div><p className="text-xs font-medium uppercase tracking-[0.14em] text-accent">Daily missions</p><p className="mt-1 text-xs text-muted-foreground">Two fresh missions are selected each day. Complete each mission to earn 10 L.</p></div>{todayMissions.map(([title, description]) => { const claimed = claimedMissionTitles.includes(title); return <Card key={title} className="border-0 bg-card py-4 ring-1 ring-border"><CardHeader className="px-5"><CardTitle className="text-base">{title}</CardTitle></CardHeader><CardContent className="flex items-center justify-between gap-3 px-5"><p className="text-xs leading-relaxed text-muted-foreground">{description}</p><Button size="sm" variant={claimed ? 'secondary' : 'outline'} disabled={claimed} onClick={() => onClaimMission(title)} className="shrink-0 font-mono">{claimed ? <><Check data-icon="inline-start" /> Claimed</> : '+10 L'}</Button></CardContent></Card> })}</div>
     </section>
   )
 }
